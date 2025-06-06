@@ -39,8 +39,9 @@ export const usePosts = (boardType?: string, university?: string, department?: s
         `)
         .order('created_at', { ascending: false });
 
-      if (boardType) {
-        query = query.eq('board_type', boardType);
+      // Only apply board_type filter if it's a valid enum value
+      if (boardType && ['international', 'campus', 'department'].includes(boardType)) {
+        query = query.eq('board_type', boardType as 'international' | 'campus' | 'department');
       }
       if (university) {
         query = query.eq('university', university);

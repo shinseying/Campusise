@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 
 const boardTypes = [
+  { id: 'all', label: '전체', color: 'bg-accent text-accent-foreground' },
   { id: 'popular', label: '인기글', color: 'bg-accent text-accent-foreground' },
   { id: 'international', label: '국제 게시판', color: 'bg-primary text-primary-foreground' },
   { id: 'campus', label: '교내 게시판', color: 'bg-secondary text-secondary-foreground' },

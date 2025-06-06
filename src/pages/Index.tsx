@@ -62,7 +62,7 @@ const Index = () => {
             </div>
           </div>
           
-          <BoardTabs activeBoard={activeBoard} onBoardChange={setActiveBoard} />
+          <BoardTabs activeTab={activeBoard} onTabChange={setActiveBoard} />
           
           <div className="mt-4">
             {posts && posts.length > 0 ? (
