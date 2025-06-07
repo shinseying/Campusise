@@ -7,6 +7,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Profile from "./pages/Profile";
+import Friends from "./pages/Friends";
+import Messages from "./pages/Messages";
+import Groups from "./pages/Groups";
 import AuthenticatedRoute from "./components/AuthenticatedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -24,6 +28,26 @@ const App = () => (
             <Route path="/" element={
               <AuthenticatedRoute>
                 <Index />
+              </AuthenticatedRoute>
+            } />
+            <Route path="/profile" element={
+              <AuthenticatedRoute>
+                <Profile />
+              </AuthenticatedRoute>
+            } />
+            <Route path="/friends" element={
+              <AuthenticatedRoute>
+                <Friends />
+              </AuthenticatedRoute>
+            } />
+            <Route path="/messages" element={
+              <AuthenticatedRoute>
+                <Messages />
+              </AuthenticatedRoute>
+            } />
+            <Route path="/groups" element={
+              <AuthenticatedRoute>
+                <Groups />
               </AuthenticatedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

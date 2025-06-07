@@ -2,6 +2,7 @@
 import React from 'react';
 import { X, User, Users, MessageSquare, Calendar, Group } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -9,14 +10,21 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { icon: User, label: '프로필', id: 'profile' },
-  { icon: Users, label: '친구', id: 'friends' },
-  { icon: MessageSquare, label: '메시지', id: 'messages' },
-  { icon: Calendar, label: '게시판', id: 'board' },
-  { icon: Group, label: '그룹', id: 'groups' },
+  { icon: User, label: '프로필', id: 'profile', path: '/profile' },
+  { icon: Users, label: '친구', id: 'friends', path: '/friends' },
+  { icon: MessageSquare, label: '메시지', id: 'messages', path: '/messages' },
+  { icon: Calendar, label: '게시판', id: 'board', path: '/' },
+  { icon: Group, label: '그룹', id: 'groups', path: '/groups' },
 ];
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const navigate = useNavigate();
+
+  const handleMenuClick = (path: string) => {
+    navigate(path);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -50,6 +58,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             {menuItems.map((item) => (
               <button
                 key={item.id}
+                onClick={() => handleMenuClick(item.path)}
                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
               >
                 <item.icon className="h-5 w-5 text-muted-foreground" />
