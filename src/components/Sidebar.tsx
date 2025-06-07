@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { X, User, Users, MessageSquare, Calendar, Group } from 'lucide-react';
+import { X, User, Users, MessageSquare, FileText, Calendar, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,31 +9,28 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-const menuItems = [
-  { icon: User, label: '프로필', id: 'profile', path: '/profile' },
-  { icon: Users, label: '친구', id: 'friends', path: '/friends' },
-  { icon: MessageSquare, label: '메시지', id: 'messages', path: '/messages' },
-  { icon: Calendar, label: '게시판', id: 'board', path: '/' },
-  { icon: Group, label: '그룹', id: 'groups', path: '/groups' },
-];
-
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const navigate = useNavigate();
 
-  const handleMenuClick = (path: string) => {
+  const handleNavigation = (path: string) => {
     navigate(path);
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
     <>
-      <div 
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        onClick={onClose}
-      />
-      <div className={`fixed left-0 top-0 h-full w-80 bg-background border-r z-50 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={`fixed top-0 left-0 h-full w-80 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">메뉴</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>
@@ -41,32 +38,73 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </Button>
         </div>
         
-        <div className="p-4">
-          <div className="mb-6">
-            <div className="flex items-center gap-3 p-3 bg-campusise-blue-light rounded-lg">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="font-medium">익명의 대학생</p>
-                <p className="text-sm text-muted-foreground">Seoul National University</p>
-              </div>
+        <nav className="p-4">
+          <div className="space-y-2">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation('/profile')}
+            >
+              <User className="h-5 w-5 mr-3" />
+              프로필
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation('/friends')}
+            >
+              <Users className="h-5 w-5 mr-3" />
+              친구
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation('/messages')}
+            >
+              <MessageSquare className="h-5 w-5 mr-3" />
+              메시지
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation('/schedule')}
+            >
+              <Calendar className="h-5 w-5 mr-3" />
+              시간표
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation('/groups')}
+            >
+              <Users className="h-5 w-5 mr-3" />
+              그룹
+            </Button>
+            
+            <div className="border-t pt-4 mt-4">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">게시판</h3>
+              <Button variant="ghost" className="w-full justify-start text-sm">
+                <FileText className="h-4 w-4 mr-3" />
+                국제 게시판
+              </Button>
+              <Button variant="ghost" className="w-full justify-start text-sm">
+                <FileText className="h-4 w-4 mr-3" />
+                교내 게시판
+              </Button>
+              <Button variant="ghost" className="w-full justify-start text-sm">
+                <FileText className="h-4 w-4 mr-3" />
+                과별 게시판
+              </Button>
+            </div>
+            
+            <div className="border-t pt-4 mt-4">
+              <Button variant="ghost" className="w-full justify-start">
+                <Settings className="h-5 w-5 mr-3" />
+                설정
+              </Button>
             </div>
           </div>
-          
-          <nav className="space-y-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleMenuClick(item.path)}
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
-              >
-                <item.icon className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+        </nav>
       </div>
     </>
   );

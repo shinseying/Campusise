@@ -430,6 +430,7 @@ export type Database = {
           university: string
           updated_at: string | null
           username: string
+          username_id: string
         }
         Insert: {
           bio?: string | null
@@ -442,6 +443,7 @@ export type Database = {
           university: string
           updated_at?: string | null
           username: string
+          username_id: string
         }
         Update: {
           bio?: string | null
@@ -454,6 +456,7 @@ export type Database = {
           university?: string
           updated_at?: string | null
           username?: string
+          username_id?: string
         }
         Relationships: []
       }

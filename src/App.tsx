@@ -11,6 +11,7 @@ import Profile from "./pages/Profile";
 import Friends from "./pages/Friends";
 import Messages from "./pages/Messages";
 import Groups from "./pages/Groups";
+import Schedule from "./pages/Schedule";
 import AuthenticatedRoute from "./components/AuthenticatedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -48,6 +49,11 @@ const App = () => (
             <Route path="/groups" element={
               <AuthenticatedRoute>
                 <Groups />
+              </AuthenticatedRoute>
+            } />
+            <Route path="/schedule" element={
+              <AuthenticatedRoute>
+                <Schedule />
               </AuthenticatedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
