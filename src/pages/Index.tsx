@@ -3,16 +3,20 @@ import React, { useState } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import BoardTabs from '@/components/BoardTabs';
-import PostCard from '@/components/PostCard';
+import RealtimePostCard from '@/components/RealtimePostCard';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import { usePosts } from '@/hooks/usePosts';
 import { useAuth } from '@/hooks/useAuth';
+import { useRealtime } from '@/hooks/useRealtime';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
   const [activeBoard, setActiveBoard] = useState('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user, signOut } = useAuth();
+  
+  // 실시간 기능 초기화
+  useRealtime();
   
   // Determine board type for query
   let boardType: string | undefined;
@@ -67,7 +71,7 @@ const Index = () => {
           <div className="mt-4">
             {posts && posts.length > 0 ? (
               posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <RealtimePostCard key={post.id} post={post} />
               ))
             ) : (
               <div className="text-center py-8 text-gray-500">

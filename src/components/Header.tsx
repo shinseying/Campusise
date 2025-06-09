@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
-import { Menu, Search, Bell } from 'lucide-react';
+import React from 'react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import NotificationBell from './NotificationBell';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -9,30 +10,17 @@ interface HeaderProps {
 
 const Header = ({ onMenuClick }: HeaderProps) => {
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
       <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onMenuClick}
-            className="p-2"
-          >
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="sm" onClick={onMenuClick}>
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold text-primary">Campusise</h1>
+          <h1 className="text-xl font-bold text-blue-600">Campusise</h1>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="p-2">
-            <Search className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="p-2 relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
-              3
-            </span>
-          </Button>
+        <div className="flex items-center space-x-2">
+          <NotificationBell />
         </div>
       </div>
     </header>
