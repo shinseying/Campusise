@@ -3,15 +3,23 @@ import React, { useState } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import { Button } from '@/components/ui/button';
-import { Calendar, Plus, Edit, Trash2 } from 'lucide-react';
-import { useSchedules } from '@/hooks/useSchedules';
+import { Calendar, Edit, Trash2 } from 'lucide-react';
+import { useSchedules, useDeleteSchedule } from '@/hooks/useSchedules';
+import AddScheduleDialog from '@/components/AddScheduleDialog';
 
 const Schedule = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: schedules = [], isLoading } = useSchedules();
+  const deleteSchedule = useDeleteSchedule();
 
   const handleMenuClick = () => {
     setSidebarOpen(true);
+  };
+
+  const handleDeleteSchedule = (id: string) => {
+    if (window.confirm('이 수업을 삭제하시겠습니까?')) {
+      deleteSchedule.mutate(id);
+    }
   };
 
   const getScheduleForTimeSlot = (day: number, hour: number) => {
@@ -53,10 +61,7 @@ const Schedule = () => {
                 <Calendar className="h-6 w-6 mr-2" />
                 시간표
               </h1>
-              <Button variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                수업 추가
-              </Button>
+              <AddScheduleDialog />
             </div>
 
             {/* Schedule Grid */}
@@ -129,7 +134,12 @@ const Schedule = () => {
                         <Button variant="outline" size="sm">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteSchedule(schedule.id)}
+                          disabled={deleteSchedule.isPending}
+                        >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </div>
