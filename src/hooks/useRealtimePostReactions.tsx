@@ -72,8 +72,8 @@ export const useRealtimePostReactions = (postId: string) => {
           filter: `post_id=eq.${postId}`
         },
         (payload) => {
-          if (user && payload.new?.user_id === user.id) {
-            setUserReaction(payload.new?.reaction_type as 'like' | 'dislike' || null);
+          if (user && payload.new && (payload.new as any).user_id === user.id) {
+            setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike' || null);
           }
         }
       )
