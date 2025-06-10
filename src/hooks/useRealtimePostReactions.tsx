@@ -54,8 +54,9 @@ export const useRealtimePostReactions = (postId: string) => {
           filter: `id=eq.${postId}`
         },
         (payload) => {
-          setLikesCount(payload.new.likes_count || 0);
-          setDislikesCount(payload.new.dislikes_count || 0);
+          const newData = payload.new as any;
+          setLikesCount(newData.likes_count || 0);
+          setDislikesCount(newData.dislikes_count || 0);
         }
       )
       .subscribe();
@@ -88,14 +89,8 @@ export const useRealtimePostReactions = (postId: string) => {
   const toggleReaction = async (reactionType: 'like' | 'dislike') => {
     if (!user) return;
 
-    const { error } = await supabase.rpc('handle_post_reaction', {
-      p_post_id: postId,
-      p_user_id: user.id,
-      p_reaction_type: reactionType
-    });
-
-    if (error) {
-      // RPC가 없다면 기본 방식 사용
+    // 직접 데이터베이스 조작 방식 사용
+    try {
       if (userReaction === reactionType) {
         // 같은 반응이면 제거
         await supabase
@@ -113,6 +108,8 @@ export const useRealtimePostReactions = (postId: string) => {
             reaction_type: reactionType
           });
       }
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
     }
   };
 

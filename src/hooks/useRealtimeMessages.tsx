@@ -32,7 +32,7 @@ export const useRealtimeMessages = (receiverId?: string) => {
         .from('messages')
         .select(`
           *,
-          sender:sender_id (
+          sender:profiles!messages_sender_id_fkey (
             username,
             display_name
           )
@@ -48,6 +48,7 @@ export const useRealtimeMessages = (receiverId?: string) => {
 
       if (error) {
         console.error('Error fetching messages:', error);
+        setMessages([]);
       } else {
         setMessages(data || []);
       }
@@ -77,10 +78,10 @@ export const useRealtimeMessages = (receiverId?: string) => {
             .eq('id', payload.new.sender_id)
             .single();
 
-          const newMessage = {
-            ...payload.new,
-            sender: senderData
-          } as RealtimeMessage;
+          const newMessage: RealtimeMessage = {
+            ...payload.new as any,
+            sender: senderData || undefined
+          };
 
           setMessages(prev => [...prev, newMessage]);
         }
@@ -99,7 +100,7 @@ export const useRealtimeMessages = (receiverId?: string) => {
           setMessages(prev => 
             prev.map(msg => 
               msg.id === payload.new.id 
-                ? { ...msg, ...payload.new }
+                ? { ...msg, ...payload.new as any }
                 : msg
             )
           );
