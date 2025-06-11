@@ -9,15 +9,21 @@ export const useRealtimePostReactions = (postId: string) => {
   const [dislikesCount, setDislikesCount] = useState(0);
   const [userReaction, setUserReaction] = useState<'like' | 'dislike' | null>(null);
   const channelsRef = useRef<any[]>([]);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || isSubscribedRef.current) return;
 
     // 기존 채널들 정리
     channelsRef.current.forEach(channel => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.log('Error removing reaction channel:', error);
+      }
     });
     channelsRef.current = [];
+    isSubscribedRef.current = false;
 
     // 기존 반응 데이터 불러오기
     const fetchReactions = async () => {
@@ -51,9 +57,10 @@ export const useRealtimePostReactions = (postId: string) => {
 
     fetchReactions();
 
-    // 실시간 게시글 업데이트 구독
+    // 고유한 채널 이름으로 실시간 게시글 업데이트 구독
+    const postsChannelName = `post-reactions-${postId}-${Date.now()}-${Math.random()}`;
     const postsChannel = supabase
-      .channel(`post-reactions-${postId}-${Date.now()}`)
+      .channel(postsChannelName)
       .on(
         'postgres_changes',
         {
@@ -68,14 +75,12 @@ export const useRealtimePostReactions = (postId: string) => {
           setLikesCount(newData.likes_count || 0);
           setDislikesCount(newData.dislikes_count || 0);
         }
-      )
-      .subscribe();
-
-    channelsRef.current.push(postsChannel);
+      );
 
     // 실시간 반응 구독
+    const reactionsChannelName = `reactions-${postId}-${Date.now()}-${Math.random()}`;
     const reactionsChannel = supabase
-      .channel(`reactions-${postId}-${Date.now()}`)
+      .channel(reactionsChannelName)
       .on(
         'postgres_changes',
         {
@@ -110,16 +115,36 @@ export const useRealtimePostReactions = (postId: string) => {
             setDislikesCount(post.dislikes_count || 0);
           }
         }
-      )
-      .subscribe();
+      );
 
-    channelsRef.current.push(reactionsChannel);
+    // 채널 구독
+    try {
+      postsChannel.subscribe((status) => {
+        console.log('Posts reactions channel subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        }
+      });
+      
+      reactionsChannel.subscribe((status) => {
+        console.log('Reactions channel subscription status:', status);
+      });
+
+      channelsRef.current = [postsChannel, reactionsChannel];
+    } catch (error) {
+      console.error('Error subscribing to reaction channels:', error);
+    }
 
     return () => {
       channelsRef.current.forEach(channel => {
-        supabase.removeChannel(channel);
+        try {
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.log('Error removing reaction channel on cleanup:', error);
+        }
       });
       channelsRef.current = [];
+      isSubscribedRef.current = false;
     };
   }, [postId, user]);
 

@@ -22,15 +22,21 @@ export const useRealtimeComments = (postId: string) => {
   const [isLoading, setIsLoading] = useState(true);
   const [commentsCount, setCommentsCount] = useState(0);
   const channelsRef = useRef<any[]>([]);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || isSubscribedRef.current) return;
 
     // 기존 채널들 정리
     channelsRef.current.forEach(channel => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (error) {
+        console.log('Error removing channel:', error);
+      }
     });
     channelsRef.current = [];
+    isSubscribedRef.current = false;
 
     // 기존 댓글 불러오기
     const fetchComments = async () => {
@@ -73,9 +79,10 @@ export const useRealtimeComments = (postId: string) => {
 
     fetchComments();
 
-    // 실시간 댓글 구독
+    // 고유한 채널 이름으로 실시간 댓글 구독
+    const commentsChannelName = `comments-${postId}-${Date.now()}-${Math.random()}`;
     const commentsChannel = supabase
-      .channel(`comments-${postId}-${Date.now()}`)
+      .channel(commentsChannelName)
       .on(
         'postgres_changes',
         {
@@ -107,14 +114,12 @@ export const useRealtimeComments = (postId: string) => {
             setCommentsCount(prev => Math.max(0, prev - 1));
           }
         }
-      )
-      .subscribe();
-
-    channelsRef.current.push(commentsChannel);
+      );
 
     // 게시글 댓글 수 업데이트 구독
+    const postsChannelName = `post-comments-${postId}-${Date.now()}-${Math.random()}`;
     const postsChannel = supabase
-      .channel(`post-comments-${postId}-${Date.now()}`)
+      .channel(postsChannelName)
       .on(
         'postgres_changes',
         {
@@ -130,16 +135,36 @@ export const useRealtimeComments = (postId: string) => {
             setCommentsCount(newData.comments_count);
           }
         }
-      )
-      .subscribe();
+      );
 
-    channelsRef.current.push(postsChannel);
+    // 채널 구독
+    try {
+      commentsChannel.subscribe((status) => {
+        console.log('Comments channel subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        }
+      });
+      
+      postsChannel.subscribe((status) => {
+        console.log('Posts channel subscription status:', status);
+      });
+
+      channelsRef.current = [commentsChannel, postsChannel];
+    } catch (error) {
+      console.error('Error subscribing to channels:', error);
+    }
 
     return () => {
       channelsRef.current.forEach(channel => {
-        supabase.removeChannel(channel);
+        try {
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.log('Error removing channel on cleanup:', error);
+        }
       });
       channelsRef.current = [];
+      isSubscribedRef.current = false;
     };
   }, [postId]);
 

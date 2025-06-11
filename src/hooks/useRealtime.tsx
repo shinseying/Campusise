@@ -6,18 +6,26 @@ import { useAuth } from './useAuth';
 export const useRealtime = () => {
   const { user } = useAuth();
   const presenceChannelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isSubscribedRef.current) return;
 
     // 기존 채널 정리
     if (presenceChannelRef.current) {
-      presenceChannelRef.current.unsubscribe();
-      supabase.removeChannel(presenceChannelRef.current);
+      try {
+        presenceChannelRef.current.unsubscribe();
+        supabase.removeChannel(presenceChannelRef.current);
+      } catch (error) {
+        console.log('Error cleaning up presence channel:', error);
+      }
+      presenceChannelRef.current = null;
+      isSubscribedRef.current = false;
     }
 
-    // 사용자 온라인 상태 관리
-    const presenceChannel = supabase.channel(`online-users-${user.id}-${Date.now()}`);
+    // 고유한 채널 이름 생성
+    const channelName = `online-users-${user.id}-${Date.now()}-${Math.random()}`;
+    const presenceChannel = supabase.channel(channelName);
     presenceChannelRef.current = presenceChannel;
 
     presenceChannel
@@ -32,18 +40,28 @@ export const useRealtime = () => {
         console.log('User left:', key, leftPresences);
       })
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await presenceChannel.track({
-            user_id: user.id,
-            online_at: new Date().toISOString(),
-          });
+        console.log('Presence subscription status:', status);
+        if (status === 'SUBSCRIBED' && !isSubscribedRef.current) {
+          isSubscribedRef.current = true;
+          try {
+            await presenceChannel.track({
+              user_id: user.id,
+              online_at: new Date().toISOString(),
+            });
+          } catch (error) {
+            console.error('Error tracking presence:', error);
+          }
         }
       });
 
     // 페이지 언로드 시 정리
     const handleBeforeUnload = () => {
       if (presenceChannelRef.current) {
-        presenceChannelRef.current.untrack();
+        try {
+          presenceChannelRef.current.untrack();
+        } catch (error) {
+          console.log('Error untracking on beforeunload:', error);
+        }
       }
     };
 
@@ -52,9 +70,14 @@ export const useRealtime = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       if (presenceChannelRef.current) {
-        presenceChannelRef.current.unsubscribe();
-        supabase.removeChannel(presenceChannelRef.current);
+        try {
+          presenceChannelRef.current.unsubscribe();
+          supabase.removeChannel(presenceChannelRef.current);
+        } catch (error) {
+          console.log('Error cleaning up presence channel on unmount:', error);
+        }
       }
+      isSubscribedRef.current = false;
     };
   }, [user]);
 
