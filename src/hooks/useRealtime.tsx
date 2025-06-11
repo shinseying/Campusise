@@ -10,8 +10,14 @@ export const useRealtime = () => {
   useEffect(() => {
     if (!user) return;
 
+    // 기존 채널 정리
+    if (presenceChannelRef.current) {
+      presenceChannelRef.current.unsubscribe();
+      supabase.removeChannel(presenceChannelRef.current);
+    }
+
     // 사용자 온라인 상태 관리
-    const presenceChannel = supabase.channel('online-users');
+    const presenceChannel = supabase.channel(`online-users-${user.id}-${Date.now()}`);
     presenceChannelRef.current = presenceChannel;
 
     presenceChannel
@@ -36,14 +42,19 @@ export const useRealtime = () => {
 
     // 페이지 언로드 시 정리
     const handleBeforeUnload = () => {
-      presenceChannel.untrack();
+      if (presenceChannelRef.current) {
+        presenceChannelRef.current.untrack();
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      presenceChannel.unsubscribe();
+      if (presenceChannelRef.current) {
+        presenceChannelRef.current.unsubscribe();
+        supabase.removeChannel(presenceChannelRef.current);
+      }
     };
   }, [user]);
 

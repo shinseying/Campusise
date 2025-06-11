@@ -7,6 +7,8 @@ import { toast } from './use-toast';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userData?: any) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -45,6 +47,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  const signIn = async (email: string, password: string) => {
+    console.log('AuthProvider - Signing in...');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        console.error('AuthProvider - Sign in error:', error);
+        toast({
+          title: "로그인 실패",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
+    } catch (error) {
+      console.error('AuthProvider - Unexpected sign in error:', error);
+      throw error;
+    }
+  };
+
+  const signUp = async (email: string, password: string, userData?: any) => {
+    console.log('AuthProvider - Signing up...');
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData,
+        },
+      });
+      if (error) {
+        console.error('AuthProvider - Sign up error:', error);
+        toast({
+          title: "회원가입 실패",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      } else {
+        toast({
+          title: "회원가입 성공",
+          description: "이메일 확인 후 로그인해주세요.",
+        });
+      }
+    } catch (error) {
+      console.error('AuthProvider - Unexpected sign up error:', error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     console.log('AuthProvider - Signing out...');
     try {
@@ -71,6 +125,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const value = {
     user,
     loading,
+    signIn,
+    signUp,
     signOut,
   };
 

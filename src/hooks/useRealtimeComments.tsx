@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -21,12 +21,21 @@ export const useRealtimeComments = (postId: string) => {
   const [comments, setComments] = useState<RealtimeComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [commentsCount, setCommentsCount] = useState(0);
+  const channelsRef = useRef<any[]>([]);
 
   useEffect(() => {
     if (!postId) return;
 
+    // 기존 채널들 정리
+    channelsRef.current.forEach(channel => {
+      supabase.removeChannel(channel);
+    });
+    channelsRef.current = [];
+
     // 기존 댓글 불러오기
     const fetchComments = async () => {
+      console.log('Fetching comments for post:', postId);
+      
       const { data, error } = await supabase
         .from('comments')
         .select(`
@@ -41,7 +50,9 @@ export const useRealtimeComments = (postId: string) => {
 
       if (error) {
         console.error('Error fetching comments:', error);
+        setComments([]);
       } else {
+        console.log('Comments fetched:', data?.length || 0);
         setComments(data || []);
         setCommentsCount(data?.length || 0);
       }
@@ -55,6 +66,7 @@ export const useRealtimeComments = (postId: string) => {
         .single();
 
       if (post) {
+        console.log('Post comments count from DB:', post.comments_count);
         setCommentsCount(post.comments_count || 0);
       }
     };
@@ -63,7 +75,7 @@ export const useRealtimeComments = (postId: string) => {
 
     // 실시간 댓글 구독
     const commentsChannel = supabase
-      .channel(`comments-${postId}`)
+      .channel(`comments-${postId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -73,6 +85,8 @@ export const useRealtimeComments = (postId: string) => {
           filter: `post_id=eq.${postId}`
         },
         async (payload) => {
+          console.log('Comment changed:', payload);
+          
           if (payload.eventType === 'INSERT') {
             // 새 댓글에 대한 프로필 정보 가져오기
             const { data: authorData } = await supabase
@@ -96,9 +110,11 @@ export const useRealtimeComments = (postId: string) => {
       )
       .subscribe();
 
+    channelsRef.current.push(commentsChannel);
+
     // 게시글 댓글 수 업데이트 구독
     const postsChannel = supabase
-      .channel(`post-comments-${postId}`)
+      .channel(`post-comments-${postId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -108,6 +124,7 @@ export const useRealtimeComments = (postId: string) => {
           filter: `id=eq.${postId}`
         },
         (payload) => {
+          console.log('Post comments count updated:', payload);
           const newData = payload.new as any;
           if (newData.comments_count !== undefined) {
             setCommentsCount(newData.comments_count);
@@ -116,14 +133,20 @@ export const useRealtimeComments = (postId: string) => {
       )
       .subscribe();
 
+    channelsRef.current.push(postsChannel);
+
     return () => {
-      supabase.removeChannel(commentsChannel);
-      supabase.removeChannel(postsChannel);
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current = [];
     };
   }, [postId]);
 
   const addComment = async (content: string, isAnonymous: boolean = true) => {
     if (!user) return;
+
+    console.log('Adding comment:', content, 'anonymous:', isAnonymous);
 
     const { error } = await supabase
       .from('comments')
