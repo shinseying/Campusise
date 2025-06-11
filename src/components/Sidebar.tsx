@@ -83,15 +83,27 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             
             <div className="border-t pt-4 mt-4">
               <h3 className="text-sm font-medium text-gray-600 mb-2">게시판</h3>
-              <Button variant="ghost" className="w-full justify-start text-sm">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-sm"
+                onClick={() => handleNavigation('/boards')}
+              >
                 <FileText className="h-4 w-4 mr-3" />
                 국제 게시판
               </Button>
-              <Button variant="ghost" className="w-full justify-start text-sm">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-sm"
+                onClick={() => handleNavigation('/boards')}
+              >
                 <FileText className="h-4 w-4 mr-3" />
                 교내 게시판
               </Button>
-              <Button variant="ghost" className="w-full justify-start text-sm">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-sm"
+                onClick={() => handleNavigation('/boards')}
+              >
                 <FileText className="h-4 w-4 mr-3" />
                 과별 게시판
               </Button>
