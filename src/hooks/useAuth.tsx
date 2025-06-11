@@ -1,129 +1,92 @@
 
-import { useState, useEffect, createContext, useContext } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { toast } from './use-toast';
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
-  signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signOut: () => Promise<void>;
   loading: boolean;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
+    console.log('AuthProvider - Getting initial session...');
+    
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('AuthProvider - Error getting session:', error);
+      } else {
+        console.log('AuthProvider - Initial session:', session?.user?.email);
+        setUser(session?.user ?? null);
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setSession(session);
+        console.log('AuthProvider - Auth state changed:', event, session?.user?.email);
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('AuthProvider - Cleaning up auth subscription');
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const signUp = async (email: string, password: string, userData: any) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: userData
-      }
-    });
-
-    if (error) {
-      toast({
-        title: "회원가입 실패",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "회원가입 성공",
-        description: "이메일을 확인해주세요."
-      });
-    }
-
-    return { error };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (error) {
-      toast({
-        title: "로그인 실패",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "로그인 성공",
-        description: "환영합니다!"
-      });
-    }
-
-    return { error };
-  };
-
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        title: "로그아웃 실패",
-        description: error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "로그아웃 성공",
-        description: "안전하게 로그아웃되었습니다."
-      });
+    console.log('AuthProvider - Signing out...');
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('AuthProvider - Sign out error:', error);
+        toast({
+          title: "로그아웃 실패",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        console.log('AuthProvider - Sign out successful');
+        toast({
+          title: "로그아웃 완료",
+          description: "성공적으로 로그아웃되었습니다.",
+        });
+      }
+    } catch (error) {
+      console.error('AuthProvider - Unexpected sign out error:', error);
     }
   };
+
+  const value = {
+    user,
+    loading,
+    signOut,
+  };
+
+  console.log('AuthProvider - Rendering with user:', user?.email, 'loading:', loading);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      signUp,
-      signIn,
-      signOut,
-      loading
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
