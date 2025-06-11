@@ -36,6 +36,8 @@ export const useRealtimePostReactions = (postId: string) => {
 
         if (reaction) {
           setUserReaction(reaction.reaction_type as 'like' | 'dislike');
+        } else {
+          setUserReaction(null); // 명시적으로 null로 설정
         }
       }
     };
@@ -72,9 +74,30 @@ export const useRealtimePostReactions = (postId: string) => {
           table: 'post_reactions',
           filter: `post_id=eq.${postId}`
         },
-        (payload) => {
-          if (user && payload.new && (payload.new as any).user_id === user.id) {
-            setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike' || null);
+        async (payload) => {
+          // 사용자 자신의 반응 변경 감지
+          if (user && payload.eventType) {
+            if (payload.eventType === 'DELETE' && 
+                (payload.old as any).user_id === user.id) {
+              // 사용자가 반응을 삭제한 경우
+              setUserReaction(null);
+            } else if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && 
+                      (payload.new as any).user_id === user.id) {
+              // 사용자가 반응을 추가하거나 변경한 경우
+              setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike');
+            }
+          }
+          
+          // 좋아요/싫어요 카운트를 다시 가져와 최신 상태 유지
+          const { data: post } = await supabase
+            .from('posts')
+            .select('likes_count, dislikes_count')
+            .eq('id', postId)
+            .single();
+            
+          if (post) {
+            setLikesCount(post.likes_count || 0);
+            setDislikesCount(post.dislikes_count || 0);
           }
         }
       )
@@ -98,6 +121,9 @@ export const useRealtimePostReactions = (postId: string) => {
           .delete()
           .eq('post_id', postId)
           .eq('user_id', user.id);
+          
+        // 즉시 UI 업데이트
+        setUserReaction(null);
       } else {
         // 다른 반응이거나 처음이면 upsert
         await supabase
@@ -107,6 +133,9 @@ export const useRealtimePostReactions = (postId: string) => {
             user_id: user.id,
             reaction_type: reactionType
           });
+          
+        // 즉시 UI 업데이트
+        setUserReaction(reactionType);
       }
     } catch (error) {
       console.error('Error toggling reaction:', error);

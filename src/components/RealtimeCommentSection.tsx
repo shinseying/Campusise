@@ -18,7 +18,7 @@ interface RealtimeCommentSectionProps {
 const RealtimeCommentSection = ({ postId, isOpen, onClose }: RealtimeCommentSectionProps) => {
   const [newComment, setNewComment] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(true);
-  const { comments, isLoading, addComment } = useRealtimeComments(postId);
+  const { comments, commentsCount, isLoading, addComment } = useRealtimeComments(postId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +34,7 @@ const RealtimeCommentSection = ({ postId, isOpen, onClose }: RealtimeCommentSect
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
-            댓글 ({comments.length})
+            댓글 ({commentsCount || 0})
           </DialogTitle>
         </DialogHeader>
         

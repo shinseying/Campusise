@@ -7,6 +7,7 @@ import { Heart, MessageSquare, Share, Bookmark, ThumbsDown } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { useRealtimePostReactions } from '@/hooks/useRealtimePostReactions';
+import { useRealtimeComments } from '@/hooks/useRealtimeComments';
 import RealtimeCommentSection from './RealtimeCommentSection';
 import { Post } from '@/hooks/usePosts';
 
@@ -17,6 +18,7 @@ interface RealtimePostCardProps {
 const RealtimePostCard = ({ post }: RealtimePostCardProps) => {
   const [isCommentOpen, setIsCommentOpen] = useState(false);
   const { likesCount, dislikesCount, userReaction, toggleReaction } = useRealtimePostReactions(post.id);
+  const { commentsCount } = useRealtimeComments(post.id);
 
   const displayName = post.is_anonymous ? '익명' : (post.profiles?.display_name || '사용자');
 
@@ -97,7 +99,7 @@ const RealtimePostCard = ({ post }: RealtimePostCardProps) => {
                 className="flex items-center space-x-1 text-gray-600"
               >
                 <MessageSquare className="h-4 w-4" />
-                <span>{post.comments_count}</span>
+                <span>{commentsCount || 0}</span>
               </Button>
             </div>
 
