@@ -30,10 +30,10 @@ export const useProfile = () => {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      return data as Profile;
+      return data as Profile | null;
     },
     enabled: !!user
   });
@@ -47,15 +47,46 @@ export const useUpdateProfile = () => {
     mutationFn: async (profileData: Partial<Profile>) => {
       if (!user) throw new Error('사용자 인증이 필요합니다.');
 
-      const { data, error } = await supabase
+      // 먼저 프로필이 존재하는지 확인
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .update(profileData)
+        .select('id')
         .eq('id', user.id)
-        .select()
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (existingProfile) {
+        // 프로필이 존재하면 업데이트
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(profileData)
+          .eq('id', user.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } else {
+        // 프로필이 없으면 생성
+        const newProfile = {
+          id: user.id,
+          username: user.email?.split('@')[0] || 'user',
+          display_name: profileData.display_name || '익명의 대학생',
+          username_id: user.email?.split('@')[0] || 'user',
+          university: 'Unknown University',
+          department: 'Unknown Department',
+          bio: profileData.bio || '안녕하세요!',
+          ...profileData
+        };
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert(newProfile)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
@@ -65,6 +96,7 @@ export const useUpdateProfile = () => {
       });
     },
     onError: (error) => {
+      console.error('Profile update error:', error);
       toast({
         title: "프로필 업데이트 실패",
         description: error.message,
