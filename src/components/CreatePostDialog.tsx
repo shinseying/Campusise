@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,36 +18,44 @@ interface CreatePostDialogProps {
 
 const CreatePostDialog = ({ children }: CreatePostDialogProps) => {
   const { user } = useAuth();
+  const { data: profile } = useProfile();
   const createPost = useCreatePost();
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     board_type: 'international' as 'international' | 'campus' | 'department',
-    university: '',
-    department: '',
     is_anonymous: true
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user) {
+    if (!user || !profile) {
       alert('로그인이 필요합니다.');
       return;
     }
 
-    await createPost.mutateAsync(formData);
+    // 게시판 타입에 따라 대학교/학과 정보 자동 설정
+    const postData = {
+      ...formData,
+      university: formData.board_type === 'campus' ? profile.university : undefined,
+      department: formData.board_type === 'department' ? profile.department : undefined,
+    };
+
+    await createPost.mutateAsync(postData);
     setFormData({
       title: '',
       content: '',
       board_type: 'international',
-      university: '',
-      department: '',
       is_anonymous: true
     });
     setOpen(false);
   };
+
+  if (!profile) {
+    return null; // 프로필이 로드되지 않으면 렌더링하지 않음
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -76,45 +85,26 @@ const CreatePostDialog = ({ children }: CreatePostDialogProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="international">국제 게시판</SelectItem>
-                <SelectItem value="campus">교내 게시판</SelectItem>
-                <SelectItem value="department">과별 게시판</SelectItem>
+                <SelectItem value="campus">교내 게시판 ({profile.university})</SelectItem>
+                <SelectItem value="department">과별 게시판 ({profile.department})</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {formData.board_type === 'campus' && (
-            <div>
-              <Label htmlFor="university">대학교</Label>
-              <Input
-                id="university"
-                value={formData.university}
-                onChange={(e) => setFormData(prev => ({ ...prev, university: e.target.value }))}
-                placeholder="대학교명을 입력하세요"
-              />
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-blue-700">
+                <strong>{profile.university}</strong> 교내 게시판에 게시됩니다.
+              </p>
             </div>
           )}
 
           {formData.board_type === 'department' && (
-            <>
-              <div>
-                <Label htmlFor="university">대학교</Label>
-                <Input
-                  id="university"
-                  value={formData.university}
-                  onChange={(e) => setFormData(prev => ({ ...prev, university: e.target.value }))}
-                  placeholder="대학교명을 입력하세요"
-                />
-              </div>
-              <div>
-                <Label htmlFor="department">학과</Label>
-                <Input
-                  id="department"
-                  value={formData.department}
-                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                  placeholder="학과명을 입력하세요"
-                />
-              </div>
-            </>
+            <div className="bg-green-50 p-3 rounded-lg">
+              <p className="text-sm text-green-700">
+                <strong>{profile.department}</strong> 과별 게시판에 게시됩니다.
+              </p>
+            </div>
           )}
 
           <div>

@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -39,15 +38,19 @@ export const usePosts = (boardType?: string, university?: string, department?: s
         `)
         .order('created_at', { ascending: false });
 
-      // Only apply board_type filter if it's a valid enum value
+      // 게시판 타입별 필터링
       if (boardType && ['international', 'campus', 'department'].includes(boardType)) {
         query = query.eq('board_type', boardType as 'international' | 'campus' | 'department');
-      }
-      if (university) {
-        query = query.eq('university', university);
-      }
-      if (department) {
-        query = query.eq('department', department);
+        
+        // 교내 게시판: 같은 대학교
+        if (boardType === 'campus' && university) {
+          query = query.eq('university', university);
+        }
+        
+        // 과별 게시판: 같은 학과 (대학교 상관없이)
+        if (boardType === 'department' && department) {
+          query = query.eq('department', department);
+        }
       }
 
       const { data, error } = await query;
