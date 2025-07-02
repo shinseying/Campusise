@@ -198,6 +198,7 @@ export const useRealtimeComments = (postId: string) => {
 
   return {
     comments,
+    commentsCount: comments.length,
     isLoading,
     addComment,
   };

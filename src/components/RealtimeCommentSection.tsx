@@ -48,13 +48,13 @@ const RealtimeCommentSection = ({ postId, isOpen, onClose }: RealtimeCommentSect
               <div key={comment.id} className="flex space-x-3">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-blue-500 text-white text-xs">
-                    {comment.is_anonymous ? '익' : comment.author?.display_name?.[0] || 'U'}
+                    {comment.is_anonymous ? '익' : comment.profiles?.display_name?.[0] || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-medium text-sm">
-                      {comment.is_anonymous ? '익명' : comment.author?.display_name || '사용자'}
+                      {comment.is_anonymous ? '익명' : comment.profiles?.display_name || '사용자'}
                     </span>
                     <span className="text-xs text-gray-500">
                       {formatDistanceToNow(new Date(comment.created_at), { 
