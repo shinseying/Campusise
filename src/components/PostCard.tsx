@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { Heart, MessageCircle, Share, Bookmark, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { usePostReaction, Post } from '@/hooks/usePosts';
+import { Post } from '@/hooks/usePosts';
+import { useRealtimePostReactions } from '@/hooks/useRealtimePostReactions';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import CommentSection from './CommentSection';
@@ -14,10 +15,10 @@ interface PostCardProps {
 
 const PostCard = ({ post }: PostCardProps) => {
   const [isCommentSectionOpen, setIsCommentSectionOpen] = useState(false);
-  const postReaction = usePostReaction();
+  const { likesCount, dislikesCount, userReaction, toggleReaction } = useRealtimePostReactions(post.id);
 
   const handleReaction = (reactionType: 'like' | 'dislike') => {
-    postReaction.mutate({ postId: post.id, reactionType });
+    toggleReaction(reactionType);
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -66,23 +67,25 @@ const PostCard = ({ post }: PostCardProps) => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="flex items-center space-x-1 text-gray-600 hover:text-blue-600"
+                className={`flex items-center space-x-1 text-gray-600 hover:text-blue-600 ${
+                  userReaction === 'like' ? 'text-blue-600 bg-blue-50' : ''
+                }`}
                 onClick={() => handleReaction('like')}
-                disabled={postReaction.isPending}
               >
                 <ThumbsUp className="w-4 h-4" />
-                <span className="text-xs">{post.likes_count}</span>
+                <span className="text-xs">{likesCount}</span>
               </Button>
               
               <Button
                 variant="ghost"
                 size="sm"
-                className="flex items-center space-x-1 text-gray-600 hover:text-red-600"
+                className={`flex items-center space-x-1 text-gray-600 hover:text-red-600 ${
+                  userReaction === 'dislike' ? 'text-red-600 bg-red-50' : ''
+                }`}
                 onClick={() => handleReaction('dislike')}
-                disabled={postReaction.isPending}
               >
                 <ThumbsDown className="w-4 h-4" />
-                <span className="text-xs">{post.dislikes_count}</span>
+                <span className="text-xs">{dislikesCount}</span>
               </Button>
               
               <Button
