@@ -9,19 +9,15 @@ export const useRealtimePostReactions = (postId: string) => {
   const [dislikesCount, setDislikesCount] = useState(0);
   const [userReaction, setUserReaction] = useState<'like' | 'dislike' | null>(null);
   const channelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || !user) return;
 
-    // Clean up previous channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    // Fetch initial reaction data
-    const fetchReactions = async () => {
+    const initializeReactions = async () => {
       console.log('Fetching reactions for post:', postId);
       
+      // Fetch initial reaction data
       const { data: post } = await supabase
         .from('posts')
         .select('likes_count, dislikes_count')
@@ -35,84 +31,104 @@ export const useRealtimePostReactions = (postId: string) => {
       }
 
       // Check user's reaction
-      if (user) {
-        const { data: reaction } = await supabase
-          .from('post_reactions')
-          .select('reaction_type')
-          .eq('post_id', postId)
-          .eq('user_id', user.id)
-          .maybeSingle();
+      const { data: reaction } = await supabase
+        .from('post_reactions')
+        .select('reaction_type')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        console.log('User reaction:', reaction);
-        setUserReaction(reaction ? reaction.reaction_type as 'like' | 'dislike' : null);
-      }
+      console.log('User reaction:', reaction);
+      setUserReaction(reaction ? reaction.reaction_type as 'like' | 'dislike' : null);
     };
 
-    fetchReactions();
+    const setupRealtimeSubscription = () => {
+      // Clean up previous channel if it exists
+      if (channelRef.current && isSubscribedRef.current) {
+        console.log('Cleaning up previous channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        isSubscribedRef.current = false;
+      }
 
-    // Set up realtime subscription with simplified approach
-    const channel = supabase
-      .channel(`post-${postId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts',
-          filter: `id=eq.${postId}`
-        },
-        (payload) => {
-          console.log('Post updated:', payload);
-          const newData = payload.new as any;
-          setLikesCount(newData.likes_count || 0);
-          setDislikesCount(newData.dislikes_count || 0);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'post_reactions',
-          filter: `post_id=eq.${postId}`
-        },
-        async (payload) => {
-          console.log('Reaction changed:', payload);
-          
-          // Update user's reaction state if it's their reaction
-          if (user && payload.new && (payload.new as any).user_id === user.id) {
-            if (payload.eventType === 'DELETE') {
-              setUserReaction(null);
-            } else {
-              setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike');
+      // Create new channel with unique name
+      const channelName = `post-reactions-${postId}-${Date.now()}`;
+      console.log('Creating channel:', channelName);
+      
+      const channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'posts',
+            filter: `id=eq.${postId}`
+          },
+          (payload) => {
+            console.log('Post updated:', payload);
+            const newData = payload.new as any;
+            setLikesCount(newData.likes_count || 0);
+            setDislikesCount(newData.dislikes_count || 0);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'post_reactions',
+            filter: `post_id=eq.${postId}`
+          },
+          async (payload) => {
+            console.log('Reaction changed:', payload);
+            
+            // Update user's reaction state if it's their reaction
+            if (payload.new && (payload.new as any).user_id === user.id) {
+              if (payload.eventType === 'DELETE') {
+                setUserReaction(null);
+              } else {
+                setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike');
+              }
+            }
+            
+            // Refetch post counts to ensure accuracy
+            const { data: post } = await supabase
+              .from('posts')
+              .select('likes_count, dislikes_count')
+              .eq('id', postId)
+              .single();
+              
+            if (post) {
+              setLikesCount(post.likes_count || 0);
+              setDislikesCount(post.dislikes_count || 0);
             }
           }
-          
-          // Refetch post counts to ensure accuracy
-          const { data: post } = await supabase
-            .from('posts')
-            .select('likes_count, dislikes_count')
-            .eq('id', postId)
-            .single();
-            
-          if (post) {
-            setLikesCount(post.likes_count || 0);
-            setDislikesCount(post.dislikes_count || 0);
+        )
+        .subscribe((status) => {
+          console.log('Reaction channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            isSubscribedRef.current = true;
           }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Reaction channel status:', status);
-      });
+        });
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+    };
+
+    // Initialize reactions and setup subscription
+    initializeReactions().then(() => {
+      setupRealtimeSubscription();
+    });
 
     return () => {
-      if (channelRef.current) {
+      if (channelRef.current && isSubscribedRef.current) {
+        console.log('Cleaning up reaction channel');
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        isSubscribedRef.current = false;
       }
     };
-  }, [postId, user]);
+  }, [postId, user?.id]);
 
   const toggleReaction = async (reactionType: 'like' | 'dislike') => {
     if (!user) return;
@@ -129,7 +145,14 @@ export const useRealtimePostReactions = (postId: string) => {
           .eq('user_id', user.id);
         
         if (error) throw error;
+        
+        // Optimistically update local state
         setUserReaction(null);
+        if (reactionType === 'like') {
+          setLikesCount(prev => Math.max(0, prev - 1));
+        } else {
+          setDislikesCount(prev => Math.max(0, prev - 1));
+        }
       } else {
         // Add or update reaction
         const { error } = await supabase
@@ -141,10 +164,47 @@ export const useRealtimePostReactions = (postId: string) => {
           });
         
         if (error) throw error;
+        
+        // Optimistically update local state
+        const oldReaction = userReaction;
         setUserReaction(reactionType);
+        
+        if (oldReaction === 'like' && reactionType === 'dislike') {
+          setLikesCount(prev => Math.max(0, prev - 1));
+          setDislikesCount(prev => prev + 1);
+        } else if (oldReaction === 'dislike' && reactionType === 'like') {
+          setDislikesCount(prev => Math.max(0, prev - 1));
+          setLikesCount(prev => prev + 1);
+        } else if (!oldReaction) {
+          if (reactionType === 'like') {
+            setLikesCount(prev => prev + 1);
+          } else {
+            setDislikesCount(prev => prev + 1);
+          }
+        }
       }
     } catch (error) {
       console.error('Error toggling reaction:', error);
+      // Revert optimistic updates on error
+      const { data: post } = await supabase
+        .from('posts')
+        .select('likes_count, dislikes_count')
+        .eq('id', postId)
+        .single();
+        
+      if (post) {
+        setLikesCount(post.likes_count || 0);
+        setDislikesCount(post.dislikes_count || 0);
+      }
+      
+      const { data: reaction } = await supabase
+        .from('post_reactions')
+        .select('reaction_type')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+        
+      setUserReaction(reaction ? reaction.reaction_type as 'like' | 'dislike' : null);
     }
   };
 

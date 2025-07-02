@@ -3,14 +3,14 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
-export interface RealtimeComment {
+export interface Comment {
   id: string;
-  post_id: string;
-  author_id: string;
   content: string;
+  author_id: string;
+  post_id: string;
   is_anonymous: boolean;
   created_at: string;
-  author?: {
+  profiles?: {
     username: string;
     display_name: string;
   };
@@ -18,28 +18,23 @@ export interface RealtimeComment {
 
 export const useRealtimeComments = (postId: string) => {
   const { user } = useAuth();
-  const [comments, setComments] = useState<RealtimeComment[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [commentsCount, setCommentsCount] = useState(0);
   const channelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
 
   useEffect(() => {
     if (!postId) return;
 
-    // Clean up previous channel
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    // Fetch existing comments
     const fetchComments = async () => {
       console.log('Fetching comments for post:', postId);
+      setIsLoading(true);
       
       const { data, error } = await supabase
         .from('comments')
         .select(`
           *,
-          author:profiles!comments_author_id_fkey (
+          profiles:author_id (
             username,
             display_name
           )
@@ -49,119 +44,160 @@ export const useRealtimeComments = (postId: string) => {
 
       if (error) {
         console.error('Error fetching comments:', error);
-        setComments([]);
       } else {
-        console.log('Comments fetched:', data?.length || 0);
-        setComments(data || []);
-        setCommentsCount(data?.length || 0);
+        console.log('Comments fetched:', data);
+        setComments(data as Comment[]);
       }
       setIsLoading(false);
-
-      // Also get post's comment count
-      const { data: post } = await supabase
-        .from('posts')
-        .select('comments_count')
-        .eq('id', postId)
-        .single();
-
-      if (post) {
-        console.log('Post comments count from DB:', post.comments_count);
-        setCommentsCount(post.comments_count || 0);
-      }
     };
 
-    fetchComments();
+    const setupRealtimeSubscription = () => {
+      // Clean up previous channel if it exists
+      if (channelRef.current && isSubscribedRef.current) {
+        console.log('Cleaning up previous comments channel');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        isSubscribedRef.current = false;
+      }
 
-    // Set up realtime subscription
-    const channel = supabase
-      .channel(`comments-${postId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'comments',
-          filter: `post_id=eq.${postId}`
-        },
-        async (payload) => {
-          console.log('Comment changed:', payload);
-          
-          if (payload.eventType === 'INSERT') {
-            // Fetch the new comment with author info
-            const { data: authorData } = await supabase
-              .from('profiles')
-              .select('username, display_name')
-              .eq('id', (payload.new as any).author_id)
+      // Create new channel with unique name
+      const channelName = `comments-${postId}-${Date.now()}`;
+      console.log('Creating comments channel:', channelName);
+      
+      const channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'comments',
+            filter: `post_id=eq.${postId}`
+          },
+          async (payload) => {
+            console.log('New comment:', payload);
+            const newComment = payload.new as any;
+            
+            // Fetch the complete comment with profile data
+            const { data } = await supabase
+              .from('comments')
+              .select(`
+                *,
+                profiles:author_id (
+                  username,
+                  display_name
+                )
+              `)
+              .eq('id', newComment.id)
               .single();
-
-            const newComment = {
-              ...(payload.new as any),
-              author: authorData
-            } as RealtimeComment;
-
-            setComments(prev => [...prev, newComment]);
-            setCommentsCount(prev => prev + 1);
-          } else if (payload.eventType === 'DELETE') {
-            setComments(prev => prev.filter(comment => comment.id !== (payload.old as any).id));
-            setCommentsCount(prev => Math.max(0, prev - 1));
+              
+            if (data) {
+              setComments(prev => [...prev, data as Comment]);
+            }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'posts',
-          filter: `id=eq.${postId}`
-        },
-        (payload) => {
-          console.log('Post comments count updated:', payload);
-          const newData = payload.new as any;
-          if (newData.comments_count !== undefined) {
-            setCommentsCount(newData.comments_count);
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'comments',
+            filter: `post_id=eq.${postId}`
+          },
+          (payload) => {
+            console.log('Comment deleted:', payload);
+            const deletedComment = payload.old as any;
+            setComments(prev => prev.filter(comment => comment.id !== deletedComment.id));
           }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Comments channel status:', status);
-      });
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'comments',
+            filter: `post_id=eq.${postId}`
+          },
+          async (payload) => {
+            console.log('Comment updated:', payload);
+            const updatedComment = payload.new as any;
+            
+            // Fetch the complete comment with profile data
+            const { data } = await supabase
+              .from('comments')
+              .select(`
+                *,
+                profiles:author_id (
+                  username,
+                  display_name
+                )
+              `)
+              .eq('id', updatedComment.id)
+              .single();
+              
+            if (data) {
+              setComments(prev => 
+                prev.map(comment => 
+                  comment.id === updatedComment.id ? data as Comment : comment
+                )
+              );
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('Comments channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            isSubscribedRef.current = true;
+          }
+        });
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+    };
+
+    // Fetch comments and setup subscription
+    fetchComments().then(() => {
+      setupRealtimeSubscription();
+    });
 
     return () => {
-      if (channelRef.current) {
+      if (channelRef.current && isSubscribedRef.current) {
+        console.log('Cleaning up comments channel');
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        isSubscribedRef.current = false;
       }
     };
   }, [postId]);
 
-  const addComment = async (content: string, isAnonymous: boolean = true) => {
-    if (!user) return;
+  const addComment = async (content: string, isAnonymous: boolean = false) => {
+    if (!user || !content.trim()) return;
 
-    console.log('Adding comment:', content, 'anonymous:', isAnonymous);
+    console.log('Adding comment:', content);
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('comments')
-        .insert({
+        .insert([{
+          content: content.trim(),
           post_id: postId,
           author_id: user.id,
-          content,
-          is_anonymous: isAnonymous,
-        });
+          is_anonymous: isAnonymous
+        }])
+        .select()
+        .single();
 
-      if (error) {
-        console.error('Error adding comment:', error);
-      }
+      if (error) throw error;
+      
+      console.log('Comment added successfully:', data);
+      return data;
     } catch (error) {
       console.error('Error adding comment:', error);
+      throw error;
     }
   };
 
   return {
     comments,
-    commentsCount,
     isLoading,
     addComment,
   };
