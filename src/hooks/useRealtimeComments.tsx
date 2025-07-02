@@ -21,24 +21,17 @@ export const useRealtimeComments = (postId: string) => {
   const [comments, setComments] = useState<RealtimeComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [commentsCount, setCommentsCount] = useState(0);
-  const channelsRef = useRef<any[]>([]);
-  const isSubscribedRef = useRef(false);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!postId || isSubscribedRef.current) return;
+    if (!postId) return;
 
-    // 기존 채널들 정리
-    channelsRef.current.forEach(channel => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (error) {
-        console.log('Error removing channel:', error);
-      }
-    });
-    channelsRef.current = [];
-    isSubscribedRef.current = false;
+    // Clean up previous channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
-    // 기존 댓글 불러오기
+    // Fetch existing comments
     const fetchComments = async () => {
       console.log('Fetching comments for post:', postId);
       
@@ -64,7 +57,7 @@ export const useRealtimeComments = (postId: string) => {
       }
       setIsLoading(false);
 
-      // 게시글의 댓글 수도 가져오기
+      // Also get post's comment count
       const { data: post } = await supabase
         .from('posts')
         .select('comments_count')
@@ -79,10 +72,9 @@ export const useRealtimeComments = (postId: string) => {
 
     fetchComments();
 
-    // 고유한 채널 이름으로 실시간 댓글 구독
-    const commentsChannelName = `comments-${postId}-${Date.now()}-${Math.random()}`;
-    const commentsChannel = supabase
-      .channel(commentsChannelName)
+    // Set up realtime subscription
+    const channel = supabase
+      .channel(`comments-${postId}`)
       .on(
         'postgres_changes',
         {
@@ -95,7 +87,7 @@ export const useRealtimeComments = (postId: string) => {
           console.log('Comment changed:', payload);
           
           if (payload.eventType === 'INSERT') {
-            // 새 댓글에 대한 프로필 정보 가져오기
+            // Fetch the new comment with author info
             const { data: authorData } = await supabase
               .from('profiles')
               .select('username, display_name')
@@ -114,12 +106,7 @@ export const useRealtimeComments = (postId: string) => {
             setCommentsCount(prev => Math.max(0, prev - 1));
           }
         }
-      );
-
-    // 게시글 댓글 수 업데이트 구독
-    const postsChannelName = `post-comments-${postId}-${Date.now()}-${Math.random()}`;
-    const postsChannel = supabase
-      .channel(postsChannelName)
+      )
       .on(
         'postgres_changes',
         {
@@ -135,36 +122,17 @@ export const useRealtimeComments = (postId: string) => {
             setCommentsCount(newData.comments_count);
           }
         }
-      );
-
-    // 채널 구독
-    try {
-      commentsChannel.subscribe((status) => {
-        console.log('Comments channel subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true;
-        }
-      });
-      
-      postsChannel.subscribe((status) => {
-        console.log('Posts channel subscription status:', status);
+      )
+      .subscribe((status) => {
+        console.log('Comments channel status:', status);
       });
 
-      channelsRef.current = [commentsChannel, postsChannel];
-    } catch (error) {
-      console.error('Error subscribing to channels:', error);
-    }
+    channelRef.current = channel;
 
     return () => {
-      channelsRef.current.forEach(channel => {
-        try {
-          supabase.removeChannel(channel);
-        } catch (error) {
-          console.log('Error removing channel on cleanup:', error);
-        }
-      });
-      channelsRef.current = [];
-      isSubscribedRef.current = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
     };
   }, [postId]);
 
@@ -173,16 +141,20 @@ export const useRealtimeComments = (postId: string) => {
 
     console.log('Adding comment:', content, 'anonymous:', isAnonymous);
 
-    const { error } = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        author_id: user.id,
-        content,
-        is_anonymous: isAnonymous,
-      });
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .insert({
+          post_id: postId,
+          author_id: user.id,
+          content,
+          is_anonymous: isAnonymous,
+        });
 
-    if (error) {
+      if (error) {
+        console.error('Error adding comment:', error);
+      }
+    } catch (error) {
       console.error('Error adding comment:', error);
     }
   };

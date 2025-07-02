@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -105,54 +106,4 @@ export const useCreatePost = () => {
   });
 };
 
-export const usePostReaction = () => {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  return useMutation({
-    mutationFn: async ({ postId, reactionType }: { postId: string; reactionType: 'like' | 'dislike' }) => {
-      if (!user) throw new Error('사용자 인증이 필요합니다.');
-
-      // Check if reaction already exists
-      const { data: existingReaction } = await supabase
-        .from('post_reactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('post_id', postId)
-        .single();
-
-      if (existingReaction) {
-        if (existingReaction.reaction_type === reactionType) {
-          // Remove reaction if same type
-          const { error } = await supabase
-            .from('post_reactions')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('post_id', postId);
-          if (error) throw error;
-        } else {
-          // Update reaction if different type
-          const { error } = await supabase
-            .from('post_reactions')
-            .update({ reaction_type: reactionType })
-            .eq('user_id', user.id)
-            .eq('post_id', postId);
-          if (error) throw error;
-        }
-      } else {
-        // Create new reaction
-        const { error } = await supabase
-          .from('post_reactions')
-          .insert([{
-            user_id: user.id,
-            post_id: postId,
-            reaction_type: reactionType
-          }]);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    }
-  });
-};
+// Remove the old usePostReaction hook since we're using the realtime version

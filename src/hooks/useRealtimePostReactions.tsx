@@ -8,24 +8,17 @@ export const useRealtimePostReactions = (postId: string) => {
   const [likesCount, setLikesCount] = useState(0);
   const [dislikesCount, setDislikesCount] = useState(0);
   const [userReaction, setUserReaction] = useState<'like' | 'dislike' | null>(null);
-  const channelsRef = useRef<any[]>([]);
-  const isSubscribedRef = useRef(false);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!postId || isSubscribedRef.current) return;
+    if (!postId) return;
 
-    // 기존 채널들 정리
-    channelsRef.current.forEach(channel => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (error) {
-        console.log('Error removing reaction channel:', error);
-      }
-    });
-    channelsRef.current = [];
-    isSubscribedRef.current = false;
+    // Clean up previous channel
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
-    // 기존 반응 데이터 불러오기
+    // Fetch initial reaction data
     const fetchReactions = async () => {
       console.log('Fetching reactions for post:', postId);
       
@@ -41,14 +34,14 @@ export const useRealtimePostReactions = (postId: string) => {
         setDislikesCount(post.dislikes_count || 0);
       }
 
-      // 사용자의 반응 확인
+      // Check user's reaction
       if (user) {
         const { data: reaction } = await supabase
           .from('post_reactions')
           .select('reaction_type')
           .eq('post_id', postId)
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         console.log('User reaction:', reaction);
         setUserReaction(reaction ? reaction.reaction_type as 'like' | 'dislike' : null);
@@ -57,10 +50,9 @@ export const useRealtimePostReactions = (postId: string) => {
 
     fetchReactions();
 
-    // 고유한 채널 이름으로 실시간 게시글 업데이트 구독
-    const postsChannelName = `post-reactions-${postId}-${Date.now()}-${Math.random()}`;
-    const postsChannel = supabase
-      .channel(postsChannelName)
+    // Set up realtime subscription with simplified approach
+    const channel = supabase
+      .channel(`post-${postId}`)
       .on(
         'postgres_changes',
         {
@@ -75,12 +67,7 @@ export const useRealtimePostReactions = (postId: string) => {
           setLikesCount(newData.likes_count || 0);
           setDislikesCount(newData.dislikes_count || 0);
         }
-      );
-
-    // 실시간 반응 구독
-    const reactionsChannelName = `reactions-${postId}-${Date.now()}-${Math.random()}`;
-    const reactionsChannel = supabase
-      .channel(reactionsChannelName)
+      )
       .on(
         'postgres_changes',
         {
@@ -92,18 +79,16 @@ export const useRealtimePostReactions = (postId: string) => {
         async (payload) => {
           console.log('Reaction changed:', payload);
           
-          // 사용자 자신의 반응 변경 감지
-          if (user && payload.eventType) {
-            if (payload.eventType === 'DELETE' && 
-                (payload.old as any).user_id === user.id) {
+          // Update user's reaction state if it's their reaction
+          if (user && payload.new && (payload.new as any).user_id === user.id) {
+            if (payload.eventType === 'DELETE') {
               setUserReaction(null);
-            } else if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && 
-                      (payload.new as any).user_id === user.id) {
+            } else {
               setUserReaction((payload.new as any).reaction_type as 'like' | 'dislike');
             }
           }
           
-          // 카운트 업데이트
+          // Refetch post counts to ensure accuracy
           const { data: post } = await supabase
             .from('posts')
             .select('likes_count, dislikes_count')
@@ -115,36 +100,17 @@ export const useRealtimePostReactions = (postId: string) => {
             setDislikesCount(post.dislikes_count || 0);
           }
         }
-      );
-
-    // 채널 구독
-    try {
-      postsChannel.subscribe((status) => {
-        console.log('Posts reactions channel subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true;
-        }
-      });
-      
-      reactionsChannel.subscribe((status) => {
-        console.log('Reactions channel subscription status:', status);
+      )
+      .subscribe((status) => {
+        console.log('Reaction channel status:', status);
       });
 
-      channelsRef.current = [postsChannel, reactionsChannel];
-    } catch (error) {
-      console.error('Error subscribing to reaction channels:', error);
-    }
+    channelRef.current = channel;
 
     return () => {
-      channelsRef.current.forEach(channel => {
-        try {
-          supabase.removeChannel(channel);
-        } catch (error) {
-          console.log('Error removing reaction channel on cleanup:', error);
-        }
-      });
-      channelsRef.current = [];
-      isSubscribedRef.current = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+      }
     };
   }, [postId, user]);
 
@@ -155,21 +121,27 @@ export const useRealtimePostReactions = (postId: string) => {
 
     try {
       if (userReaction === reactionType) {
-        // 같은 반응이면 제거
-        await supabase
+        // Remove reaction
+        const { error } = await supabase
           .from('post_reactions')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', user.id);
+        
+        if (error) throw error;
+        setUserReaction(null);
       } else {
-        // 다른 반응이거나 처음이면 upsert
-        await supabase
+        // Add or update reaction
+        const { error } = await supabase
           .from('post_reactions')
           .upsert({
             post_id: postId,
             user_id: user.id,
             reaction_type: reactionType
           });
+        
+        if (error) throw error;
+        setUserReaction(reactionType);
       }
     } catch (error) {
       console.error('Error toggling reaction:', error);
